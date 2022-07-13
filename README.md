@@ -25,6 +25,5 @@ This code is for the paper "Ultrafast quantum state tomography with feed-forward
 
 #### Method: NN-QST with the unified state-mapping method
 
----
+![NN-QST](NN-QST.png)
 
-![NN-QST](F:\OneDrive - tongji.edu.cn\workfile\量子计算\code\QST-NNGMs-FNN\NN-QST.png)
