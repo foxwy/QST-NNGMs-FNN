@@ -2,7 +2,7 @@
 # @Author: foxwy
 # @Date:   2021-05-20 18:58:08
 # @Last Modified by:   WY
-# @Last Modified time: 2021-07-09 15:26:31
+# @Last Modified time: 2022-09-25 16:58:00
 
 # --------------------libraries--------------------
 # -----internal libraries-----
@@ -87,10 +87,8 @@ def Net_train(opt, device):
         fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, rho_star=rho_o, device=device)
     else:
         fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, rho_star=rho_star, device=device)
-    P_real = fid.get_real_p(data_unique)
-    #print('P_real', P_real)
     #print('data', data)
-    CF = fid.cFidelity(data, P_real)
+    CF = fid.cFidelity_S_product(data_unique, data)
     print('classical fidelity:', CF)
 
     # torch
@@ -98,7 +96,6 @@ def Net_train(opt, device):
     M = torch.from_numpy(M).to(device)
     P_idxs = data_unique.dot(opt.K**(np.arange(opt.n_qubits - 1, -1, -1)))
     P_idxs = torch.from_numpy(P_idxs).to(device)
-    P_real = torch.from_numpy(P_real).to(device)
 
 
     # ----------Net----------
@@ -121,7 +118,7 @@ def Net_train(opt, device):
                    'Fq': [],
                    'loss': [],
                    'loss_df': []}
-    net.train(opt.n_epochs, fid, P_real, result_save)
+    net.train(opt.n_epochs, fid, result_save)
     #np.save(savePath + '.npy', result_save)
 
     return result_save

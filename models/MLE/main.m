@@ -153,7 +153,7 @@ pauli(:,:,6) = (identity-pauli_z)/6;
 %% Ex: 4 (Convergence Experiment of Pure States with Depolarizing Noise)
 n_qubit = 8;
 savedir = 'result/';
-State = ['W' 'P' 'I'];
+State = ['W']% 'P' 'I'];
 N_s = [10000];
 for j=1:numel(State)
     State(j)
@@ -165,7 +165,7 @@ for j=1:numel(State)
     for N_i=1:numel(N_s)
         N_s(N_i)
         save_data = struct;
-        P = rand(1, 50);
+        P = rand(1, 1);
         
         for ii=1:numel(P)
             ii
@@ -195,10 +195,10 @@ for j=1:numel(State)
             opts.ket = ket;
             
             %% CG-APG
-            %[rho_qb, stats_qb_mle] = qse_apg(basis, mea_p, opts);
+            [rho_qb, stats_qb_mle] = qse_apg(basis, mea_p, opts);
             
             %% iMLE
-            [rho_qb, stats_qb_mle] = iMLE(basis, mea_p, opts);
+            %[rho_qb, stats_qb_mle] = iMLE(basis, mea_p, opts);
             
             if ii == 1
                 save_data.P = P(ii);
@@ -211,8 +211,8 @@ for j=1:numel(State)
             %show_matrix(rho_qb);
         end
         
-        savePath = [r_path 'iMLE_S_N' num2str(N_s(N_i)/100) '.mat'];
-        save(savePath, 'save_data');
+        %savePath = [r_path 'iMLE_S_N' num2str(N_s(N_i)/100) '.mat'];
+        %save(savePath, 'save_data');
     end
 end 
 

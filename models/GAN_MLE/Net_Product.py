@@ -2,7 +2,7 @@
 # @Author: foxwy
 # @Date:   2021-05-23 14:59:09
 # @Last Modified by:   WY
-# @Last Modified time: 2021-07-04 21:21:07
+# @Last Modified time: 2022-09-25 16:58:19
 
 #--------------------libraries--------------------
 #-----internal libraries-----
@@ -129,7 +129,7 @@ class Net_MLP():
         self.optim = optim.Rprop(self.generator.parameters(), lr=learning_rate)
         #self.sche = optim.lr_scheduler.StepLR(self.optim, 1, gamma=0.97)
 
-    def train(self, epochs, fid, P_real, result_save):
+    def train(self, epochs, fid, result_save):
         print('\n'+'-'*20+'train'+'-'*20)
         pbar = tqdm(range(epochs))
         epoch = 0
@@ -163,7 +163,7 @@ class Net_MLP():
             if epoch % 2 == 0:
                 self.generator.eval()
                 with torch.no_grad():
-                    Fc = fid.cFidelity(P_out, P_real)
+                    Fc = fid.cFidelity_rho(self.generator.rho)
                     Fq = fid.Fidelity(self.generator.rho)
                     loss_df = loss.item() - MLE_loss(data, data).item()
 

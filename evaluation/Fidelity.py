@@ -75,6 +75,17 @@ class Fid(Mea_basis):
 
             return Fc.item()**2
 
+    def cFidelity_rho(self, rho):
+        if type(self.rho_star) is np.ndarray:
+            P_real = qmt(self.rho_star, [self.M] * self.N)
+            P_f = qmt(rho, [self.M] * self.N)
+        elif type(self.rho_star) is torch.Tensor:
+            P_real = qmt(self.rho_star.cpu().numpy(), [self.M] * self.N)
+            P_f = qmt(rho.cpu().numpy(), [self.M] * self.N)
+        Fc = self.cFidelity(P_f, P_real)
+
+        return Fc
+
 
 # --------------------main--------------------
 if __name__ == '__main__':
