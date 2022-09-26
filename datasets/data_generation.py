@@ -50,6 +50,8 @@ class PaState(Mea_basis):
         print('---begin multiprocessing---')
         with mp.Pool(cpu_counts) as pool:  # long time!!!
             results = pool.map(samples_mp, params)
+            pool.close()
+            pool.join()
         print('---end multiprocessing---')
 
         S_all = results[0][0]
