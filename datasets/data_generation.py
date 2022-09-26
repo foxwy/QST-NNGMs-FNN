@@ -40,7 +40,7 @@ class PaState(Mea_basis):
         P_all = qmt(self.rho, [self.M] * self.N)  # probs of all operators in product construction
         #counts = np.random.multinomial(1, P_all, Ns)  # larger memory
 
-        if Ns < 5000:
+        if Ns < group_N:
             group_N = Ns
         params = [[P_all, group_N, self.K, self.N]] * int(Ns / group_N)
         cpu_counts = mp.cpu_count()
