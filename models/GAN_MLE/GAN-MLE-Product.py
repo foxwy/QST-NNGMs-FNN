@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: foxwy
 # @Date:   2021-05-20 18:58:08
-# @Last Modified by:   WY
-# @Last Modified time: 2022-09-25 16:58:00
+# @Last Modified by:   yong
+# @Last Modified time: 2022-12-06 14:21:12
 
 # --------------------libraries--------------------
 # -----internal libraries-----
@@ -11,7 +11,6 @@ import sys
 import argparse
 
 import torch
-#from apex import amp
 import numpy as np
 
 # -----environment-----
@@ -25,7 +24,6 @@ from models.GAN_MLE.Net_Product import generator, Net_MLP, discriminator, Net_CG
 from Basis.Basis_State import Mea_basis, State
 from datasets.dataset import Dataset_P, Dataset_sample, Dataset_sample_P
 from evaluation.Fidelity import Fid
-from models.GAN_MLE.modelsize_estimate import modelsize
 
 
 def filenameGenerate(base, opt):
@@ -61,21 +59,29 @@ def Net_train(opt, device):
 
     # ----------data----------
     print('\n'+'-'*20+'data'+'-'*20)
-    _, rho_star = State().Get_state_rho(opt.na_state, opt.n_qubits, opt.P_state)
+    state_star, rho_star = State().Get_state_rho(opt.na_state, opt.n_qubits, opt.P_state)
+    if opt.ty_state == 'pure':  # pure state
+        rho_star = state_star
+
     if opt.noise == 'depolar_noise':
         _, rho_star = State().Get_state_rho(opt.na_state, opt.n_qubits, 1 - opt.P_state)
         _, rho_o = State().Get_state_rho(opt.na_state, opt.n_qubits, 1)
     #np.save('../../results/fig_M/'+opt.na_state+str(int(opt.P_state*10))+'.npy', rho_star)
+    
+    rho_star = torch.from_numpy(rho_star).to(torch.complex64).to(device)
     M = Mea_basis(opt.POVM).M
+    M = torch.from_numpy(M).to(device)
 
     print('read original data')
     if opt.noise == "no_noise":
-        data_unique, data = Dataset_P(rho_star, M, opt.n_qubits, opt.K, opt.P_povm, opt.seed_povm)
+        print('----read ideal data')
+        P_idxs, data = Dataset_P(rho_star, M, opt.n_qubits, opt.K, opt.ty_state, opt.P_povm, opt.seed_povm)
     else:
+        print('----read sample data')
         if opt.P_povm == 1:
-            data_unique, data = Dataset_sample(opt.POVM, opt.na_state, opt.n_qubits, opt.n_samples, opt.P_state, rho_star, opt.read_data)  # 全测量采样'''
+            P_idxs, data = Dataset_sample(opt.POVM, opt.na_state, opt.n_qubits, opt.n_samples, opt.P_state, opt.ty_state, rho_star, M, opt.read_data)  # 全测量采样'''
         else:
-            data_unique, data = Dataset_sample_P(opt.POVM, opt.na_state, opt.n_qubits, opt.K, opt.n_samples, opt.P_state, rho_star, opt.read_data, \
+            P_idxs, data = Dataset_sample_P(opt.POVM, opt.na_state, opt.n_qubits, opt.K, opt.n_samples, opt.P_state, opt.ty_state, rho_star, opt.read_data, \
                                                  opt.P_povm, opt.seed_povm)
     
     # print(data_unique, data)
@@ -84,18 +90,12 @@ def Net_train(opt, device):
 
     # fidelity
     if opt.noise == 'depolar_noise':
-        fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, rho_star=rho_o, device=device)
+        fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, ty_state=opt.ty_state, rho_star=rho_o, M=M, device=device)
     else:
-        fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, rho_star=rho_star, device=device)
+        fid = Fid(basis=opt.POVM, n_qubits=opt.n_qubits, ty_state=opt.ty_state, rho_star=rho_star, M=M, device=device)
     #print('data', data)
-    CF = fid.cFidelity_S_product(data_unique, data)
+    CF = fid.cFidelity_S_product(P_idxs, data)
     print('classical fidelity:', CF)
-
-    # torch
-    data = torch.from_numpy(data).float().to(device)
-    M = torch.from_numpy(M).to(device)
-    P_idxs = data_unique.dot(opt.K**(np.arange(opt.n_qubits - 1, -1, -1)))
-    P_idxs = torch.from_numpy(P_idxs).to(device)
 
 
     # ----------Net----------
@@ -116,8 +116,7 @@ def Net_train(opt, device):
                    'epoch': [],
                    'Fc': [],
                    'Fq': [],
-                   'loss': [],
-                   'loss_df': []}
+                   'loss': []}
     net.train(opt.n_epochs, fid, result_save)
     #np.save(savePath + '.npy', result_save)
 
@@ -159,13 +158,13 @@ if __name__ == '__main__':
     parser.add_argument("--POVM", type=str, default="Tetra4", help="type of POVM")
     parser.add_argument("--K", type=int, default=4, help='number of operators in single-qubit POVM')
 
-    parser.add_argument("--na_state", type=str, default="random_P", help="name of state in library")
-    parser.add_argument("--P_state", type=float, default=0.9, help="P of mixed state")
+    parser.add_argument("--na_state", type=str, default="GHZi_P", help="name of state in library")
+    parser.add_argument("--P_state", type=float, default=1, help="P of mixed state")
     parser.add_argument("--ty_state", type=str, default="mixed", help="type of state (pure, mixed)")
-    parser.add_argument("--n_qubits", type=int, default=5, help="number of qubits")
+    parser.add_argument("--n_qubits", type=int, default=11, help="number of qubits")
 
     parser.add_argument("--noise", type=str, default="noise", help="have or have not sample noise (noise, no_noise, depolar_noise)")
-    parser.add_argument("--n_samples", type=int, default=5000, help="number of samples")
+    parser.add_argument("--n_samples", type=int, default=100000, help="number of samples")
     parser.add_argument("--P_povm", type=float, default=1.0, help="possbility of sampling POVM operators")
     parser.add_argument("--seed_povm", type=float, default=1.0, help="seed of sampling POVM operators")
     parser.add_argument("--read_data", type=bool, default=False, help="read data from text in computer")

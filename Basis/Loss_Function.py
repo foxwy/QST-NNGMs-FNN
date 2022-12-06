@@ -15,7 +15,7 @@ def MLE_loss(out, target):
     #target = target / torch.sum(target)
     #target = target * torch.sum(out)
     #loss = torch.sum((out - target)**2 * (torch.sqrt(target)))
-    out_idx = out > 1e-8
+    out_idx = out > 1e-12
     loss = -target[out_idx].dot(torch.log(out[out_idx]))
     return loss
 
@@ -24,7 +24,8 @@ def CF_loss(out, target):  # classical fidelity
     #out = out / torch.sum(out)
     #target = target / torch.sum(target)
     #target = target * torch.sum(out)
-    loss = -target.dot(out)
+    p = 1 / 2
+    loss = 1 - (target**p).dot(out**p)
     return loss
 
 

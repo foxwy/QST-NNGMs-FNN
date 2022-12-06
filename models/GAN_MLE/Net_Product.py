@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: foxwy
 # @Date:   2021-05-23 14:59:09
-# @Last Modified by:   WY
-# @Last Modified time: 2022-09-25 16:58:19
+# @Last Modified by:   yong
+# @Last Modified time: 2022-12-06 14:15:47
 
 #--------------------libraries--------------------
 #-----internal libraries-----
@@ -14,14 +14,13 @@ import numpy as np
 import math
 from time import perf_counter
 from tqdm import tqdm
-#from apex import amp
 
 import sys
 sys.path.append('../..')
 
 #-----external libraries-----
-from Basis.Basic_Function import qmt_torch, proj_spectrahedron_torch, crack
-from Basis.Loss_Function import MLE_loss
+from Basis.Basic_Function import qmt_torch, qmt_torch_pure, proj_spectrahedron_torch, crack
+from Basis.Loss_Function import MLE_loss, CF_loss, MLE_CF_loss
 from Basis.Basis_State import Mea_basis
 
 
@@ -39,7 +38,7 @@ class generator(nn.Module):
         print('out size:', self.out_size)           
 
         self.N = num_qubits
-        self.P_idxs = P_idxs.to(torch.long)
+        self.P_idxs = P_idxs
         self.M = M
         self.device = M.device
         self.type_state = type_state
@@ -51,8 +50,9 @@ class generator(nn.Module):
 
         self.net = nn.Sequential(
             nn.Linear(in_size, out_size_log), 
-            nn.LeakyReLU(),
-            nn.Linear(out_size_log, self.out_size)
+            nn.PReLU(),
+            nn.Linear(out_size_log, self.out_size),
+            nn.PReLU()
             )
 
     def weight_init(self, mean=0.0, std=0.0):
@@ -77,7 +77,8 @@ class generator(nn.Module):
             T_a = T[:2**self.N].to(torch.complex64)
             T_i = T[2**self.N:]
             T_a += 1j * T_i
-            T_temp = torch.matmul(T_a, T_a.T.conj())
+
+            rho = T_a / torch.norm(T_a)
 
         elif self.type_state == 'mixed':
             T_m = T_array.view(2**self.N, -1)
@@ -88,7 +89,7 @@ class generator(nn.Module):
                 T += torch.tril(T, -1).T.conj()
             T_temp = torch.matmul(T.T.conj(), T)
 
-        rho = T_temp / torch.trace(T_temp)
+            rho = T_temp / torch.trace(T_temp)
 
         return rho
 
@@ -98,8 +99,8 @@ class generator(nn.Module):
             T_a = T[:2**self.N].to(torch.complex64)
             T_i = T[2**self.N:]
             T_a += 1j * T_i
-            T_temp = torch.matmul(T_a, T_a.T.conj())
-            rho = T_temp / torch.trace(T_temp)
+
+            rho = T_a / torch.norm(T_a)
 
         elif self.type_state == 'mixed':
             T_m = T_array.view(2**self.N, -1)
@@ -113,7 +114,11 @@ class generator(nn.Module):
     def Measure_rho(self):  # product
         self.rho = self.rho.to(torch.complex64)
 
-        P_all = qmt_torch(self.rho, [self.M] * self.N)
+        if self.type_state == 'pure':
+            P_all = qmt_torch_pure(self.rho, [self.M] * self.N)
+        else:
+            P_all = qmt_torch(self.rho, [self.M] * self.N)
+
         P_real = P_all[self.P_idxs]
 
         return P_real.to(torch.float)
@@ -123,41 +128,44 @@ class Net_MLP():
     def __init__(self, generator, P_star, learning_rate=0.01):
         super().__init__
 
-        self.generator = generator
+        self.generator = generator  # torch.compile(generator, mode="max-autotune")
         self.P_star = P_star
 
         self.optim = optim.Rprop(self.generator.parameters(), lr=learning_rate)
-        #self.sche = optim.lr_scheduler.StepLR(self.optim, 1, gamma=0.97)
 
     def train(self, epochs, fid, result_save):
         print('\n'+'-'*20+'train'+'-'*20)
+        self.sche = optim.lr_scheduler.CosineAnnealingLR(self.optim, T_max=epochs, eta_min=0.)
+
         pbar = tqdm(range(epochs))
         epoch = 0
         time_all = 0
         for i in pbar:
             epoch += 1
             time_b = perf_counter()
+
             self.generator.train()
+            self.optim.zero_grad()
 
             data = self.P_star
             P_out = self.generator(data)
 
-            loss = MLE_loss(P_out, data)
-            assert torch.isnan(loss) == 0, print(loss)
+            loss = CF_loss(P_out, data)
+            assert torch.isnan(loss) == 0, print('loss is nan', loss)
 
-            self.optim.zero_grad()
-            loss.backward()
-
+            '''
             for group in self.optim.param_groups:
                 for param in group["params"]:
                     if torch.isnan(param.grad).sum() > 0:
                         print('grad have nan, doing clip grad!')
-                        param.grad.data.normal_(0, 1e-10)
+                        param.grad.data.normal_(0, 1e-10)'''
 
+            loss.backward()
             self.optim.step()
+            self.sche.step()
+
             time_e = perf_counter()
             time_all += time_e - time_b
-            #self.sche.step()
            
             # output
             if epoch % 2 == 0:
@@ -165,16 +173,14 @@ class Net_MLP():
                 with torch.no_grad():
                     Fc = fid.cFidelity_rho(self.generator.rho)
                     Fq = fid.Fidelity(self.generator.rho)
-                    loss_df = loss.item() - MLE_loss(data, data).item()
 
                     result_save['time'].append(time_all)
                     result_save['epoch'].append(epoch)
                     result_save['Fc'].append(Fc)
                     result_save['Fq'].append(Fq)
                     result_save['loss'].append(loss.item())
-                    result_save['loss_df'].append(loss_df)
-                    pbar.set_description("loss {:.8f} | diff loss {:.8f} | Fc {:.8f} | Fq {:.8f}".format(
-                                          loss.item(), loss_df, Fc, Fq))
+                    pbar.set_description("loss {:.8f} | Fc {:.8f} | Fq {:.8f}".format(
+                                          loss.item(), Fc, Fq))
 
             '''
             if epoch == epochs:

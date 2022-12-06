@@ -9,32 +9,40 @@ import torch
 import sys
 sys.path.append('..')
 
-from Basis.Basic_Function import qmt
+from Basis.Basic_Function import qmt, qmt_pure, qmt_torch, qmt_torch_pure
 from Basis.Basis_State import Mea_basis
 
 
 # -----Fid-----
 class Fid(Mea_basis):
-    def __init__(self, basis, n_qubits, rho_star, device='cpu', torch_flag=1):
+    def __init__(self, basis, n_qubits, ty_state, rho_star, M=None, device='cpu'):
         super().__init__(basis)
         self.N = n_qubits
-        if torch_flag == 1:
-            self.rho_star = torch.from_numpy(rho_star).to(device).to(torch.complex64)
-        else:
-            self.rho_star = rho_star
+        self.ty_state = ty_state
+
+        if M is not None:
+            self.M = M
+
+        self.rho_star = rho_star
+
+        self.P_all = self.get_real_p(self.rho_star)
 
     # ----------fidelity----------
     def Fidelity(self, rho):
         Fq = torch.tensor(0)
-        #try:
-        eigenvalues, eigenvecs = torch.linalg.eigh(self.rho_star)
-        eigenvalues = torch.abs(eigenvalues)
-        sqrt_rho = torch.matmul(eigenvecs * torch.sqrt(eigenvalues), eigenvecs.T.conj())  # sqrtm(self.rho_star)
-        rho_tmp = torch.matmul(torch.matmul(sqrt_rho, rho), sqrt_rho)  # sqrtm(self.rho_star).dot(rho).dot(sqrtm(self.rho_star))
+        if self.ty_state == 'pure':
+            tmp = torch.matmul(self.rho_star.T.conj(), rho)[0, 0]
+            Fq = (tmp * tmp.conj()).real
+        else:
+            #try:
+            eigenvalues, eigenvecs = torch.linalg.eigh(self.rho_star)
+            eigenvalues = torch.abs(eigenvalues)
+            sqrt_rho = torch.matmul(eigenvecs * torch.sqrt(eigenvalues), eigenvecs.T.conj())  # sqrtm(self.rho_star)
+            rho_tmp = torch.matmul(torch.matmul(sqrt_rho, rho), sqrt_rho)  # sqrtm(self.rho_star).dot(rho).dot(sqrtm(self.rho_star))
 
-        eigenvalues = torch.linalg.eigvalsh(rho_tmp)
-        sqrt_eigvals = torch.sqrt(torch.abs(eigenvalues))
-        Fq = torch.sum(sqrt_eigvals)**2  # trace(sqrtm(sqrtm(self.rho_star).dot(rho).dot(sqrtm(self.rho_star))))**2
+            eigenvalues = torch.linalg.eigvalsh(rho_tmp)
+            sqrt_eigvals = torch.sqrt(torch.abs(eigenvalues))
+            Fq = torch.sum(sqrt_eigvals)**2  # trace(sqrtm(sqrtm(self.rho_star).dot(rho).dot(sqrtm(self.rho_star))))**2
 
         if Fq > 1:
             Fq = 1  # precision error
@@ -44,18 +52,23 @@ class Fid(Mea_basis):
 
         return Fq
 
-    def get_real_p(self, S):
-        idxs = S.dot(self.K**(np.arange(self.N - 1, -1, -1)))
-        if type(self.rho_star) is np.ndarray:
-            P_all = qmt(self.rho_star, [self.M] * self.N)
-        elif type(self.rho_star) is torch.Tensor:
-            P_all = qmt(self.rho_star.cpu().numpy(), [self.M] * self.N)
-        P_real = P_all[idxs]
+    def get_real_p(self, rho):
+        if type(rho) is np.ndarray:
+            if self.ty_state == 'pure':
+                P_all = qmt_pure(rho, [self.M] * self.N)
+            else:
+                P_all = qmt(rho, [self.M] * self.N)
 
-        return P_real
+        elif type(rho) is torch.Tensor:
+            if self.ty_state == 'pure':
+                P_all = qmt_torch_pure(rho, [self.M] * self.N)
+            else:
+                P_all = qmt_torch(rho, [self.M] * self.N)
 
-    def cFidelity_S_product(self, S, P_f, unique_flag=1):  # fast!!!
-        P_real = self.get_real_p(S)
+        return P_all
+
+    def cFidelity_S_product(self, P_idxs, P_f, unique_flag=1):  # fast!!!
+        P_real = self.P_all[P_idxs]
         Fc = self.cFidelity(P_f, P_real, unique_flag)
 
         return Fc
@@ -76,13 +89,8 @@ class Fid(Mea_basis):
             return Fc.item()**2
 
     def cFidelity_rho(self, rho):
-        if type(self.rho_star) is np.ndarray:
-            P_real = qmt(self.rho_star, [self.M] * self.N)
-            P_f = qmt(rho, [self.M] * self.N)
-        elif type(self.rho_star) is torch.Tensor:
-            P_real = qmt(self.rho_star.cpu().numpy(), [self.M] * self.N)
-            P_f = qmt(rho.cpu().numpy(), [self.M] * self.N)
-        Fc = self.cFidelity(P_f, P_real)
+        P_f = self.get_real_p(rho)
+        Fc = self.cFidelity(P_f, self.P_all)
 
         return Fc
 

@@ -5,30 +5,41 @@ import matplotlib.pyplot as plt
 import multiprocessing as mp
 import random
 import time
+import torch
+from torch.distributions.multinomial import Multinomial
+from numpy.random import default_rng
 
 import sys
 sys.path.append('..')
 
 # external libraries
 from Basis.Basis_State import Mea_basis
-from Basis.Basic_Function import data_combination, data_combination_M2_single, qmt, samples_mp
+from Basis.Basic_Function import data_combination, data_combination_M2_single, qmt, qmt_pure, samples_mp, qmt_torch, qmt_torch_pure
 
 
 #--------------------class--------------------
 #-----PaState-----
 class PaState(Mea_basis):
-    def __init__(self, basis='Tetra', n_qubits=2, State_name='GHZ', P_state=0.0, rho_star=0):
+    def __init__(self, basis='Tetra', n_qubits=2, State_name='GHZ', P_state=0.0, ty_state='mixed', M=None, rho_star=0):
         super().__init__(basis)
         self.N = n_qubits
         self.State_name = State_name
         self.p = P_state
-        if type(rho_star) is np.ndarray:
+        self.ty_state = ty_state
+
+        if M is not None:
+            self.M = M
+            
+        if type(rho_star) is np.ndarray or type(rho_star) is torch.Tensor:
             self.rho = rho_star
         else:
-            _, self.rho = self.Get_state_rho(State_name, n_qubits, P_state)
+            if self.ty_state == 'pure':
+                self.rho, _ = self.Get_state_rho(State_name, n_qubits, P_state)
+            else:
+                _, self.rho = self.Get_state_rho(State_name, n_qubits, P_state)
 
     #-----adapting now-----
-    def samples_product(self, Ns=1000000, filename='N2', group_N=5000, save_flag=True):  # faster using product construction and multiprocessing for batch processing
+    def samples_product(self, Ns=1000000, filename='N2', group_N=500, save_flag=True):  # faster using product construction and multiprocessing for batch processing
         if save_flag:
             if 'P' in self.State_name:  # mix state
                 f_name = 'data/' + self.State_name + '_' + str(self.p) + '_' + self.basis + '_train_' + filename + '.txt'
@@ -37,7 +48,10 @@ class PaState(Mea_basis):
                 f_name = 'data/' + self.State_name + '_' + self.basis + '_train_' + filename + '.txt'
                 f2_name = 'data/' + self.State_name + '_' + self.basis + '_data_' + filename + '.txt'
 
-        P_all = qmt(self.rho, [self.M] * self.N)  # probs of all operators in product construction
+        if self.ty_state == 'pure':
+            P_all = qmt_pure(self.rho, [self.M] * self.N)  # probs of all operators in product construction
+        else:
+            P_all = qmt(self.rho, [self.M] * self.N)  # probs of all operators in product construction
         #counts = np.random.multinomial(1, P_all, Ns)  # larger memory
 
         if Ns < group_N:
@@ -47,6 +61,7 @@ class PaState(Mea_basis):
         if len(params) < cpu_counts:
             cpu_counts = len(params)
 
+        time_b = time.perf_counter()
         print('---begin multiprocessing---')
         with mp.Pool(cpu_counts) as pool:  # long time!!!
             results = pool.map(samples_mp, params)
@@ -68,9 +83,30 @@ class PaState(Mea_basis):
             np.savetxt(f2_name, S_all, '%d')
             print('---end write data to text---')
 
+        print('sample time:', time.perf_counter() - time_b)
+
         return S_all, S_one_hot_all
 
+    def sample_torch(self, Ns=1000000, filename='N2', save_flag=True):
+        time_b = time.perf_counter()
+        if self.ty_state == 'pure':
+            P_all = qmt_torch_pure(self.rho, [self.M] * self.N)  # probs of all operators in product construction
+        else:
+            P_all = qmt_torch(self.rho, [self.M] * self.N)  # probs of all operators in product construction
 
+        #counts = Multinomial(Ns, P_all).sample()
+        rng = default_rng()
+        P_all = P_all.cpu().numpy().astype(float)
+        counts = rng.multinomial(Ns, P_all / sum(P_all))
+        counts = torch.from_numpy(counts).to(self.rho.device)
+        P_sample = counts / Ns
+        P_idx = torch.arange(0, len(P_sample), device=P_sample.device)
+        idx_use = P_sample > 0
+        
+        print('----sample time:', time.perf_counter() - time_b)
+
+        return P_idx[idx_use], P_sample[idx_use]
+        
 #--------------------test--------------------
 def Para_input():  # python data_generation.py Tetra 4 GHZ 0 1000
     print("basis", sys.argv[1])

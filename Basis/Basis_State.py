@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 # @Author: foxwy
 # @Date:   2021-01-19 15:38:06
-# @Last Modified by:   WY
-# @Last Modified time: 2021-09-30 14:44:09
+# @Last Modified by:   yong
+# @Last Modified time: 2022-12-06 09:49:26
 
 #--------------------libraries--------------------
 # internal libraries
 import numpy as np
 import matplotlib.pyplot as plt
+
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # external libraries
 import sys
@@ -36,6 +39,8 @@ class State():
 
     # ----------state, rho----------
     def Get_state_rho(self, state_name, N, p=1):
+        assert p >= 0 and p <= 1, print('please input p of [0, 1]')
+
         # mix state with real part
         if state_name == 'GHZ_P':
             state, rho = self.Get_GHZ_P(N, p)
@@ -111,23 +116,35 @@ class State():
         return W_state, np.array(W_P_rho)
 
     def Get_random_state(self, N, purity):  # PGD paper
-        lambda_t = 0
-        purity_t = 0
-        x = np.arange(1, 2**N + 1)
+        assert purity >= 0 and purity <= 1, print('please input purity of [0, 1]')
+        
+        if purity != 1:
+            lambda_t = 0
+            purity_t = 0
+            x = np.arange(1, 2**N + 1)
 
-        while purity_t < purity:
-            lambda_t += 0.001
-            lam = np.exp(-lambda_t * x)
-            lamb = lam / np.sum(lam)
-            purity_t = np.sum(lamb**2)
+            while purity_t < purity:
+                lambda_t += 0.001
+                lam = np.exp(-lambda_t * x)
+                lamb = lam / np.sum(lam)
+                purity_t = np.sum(lamb**2)
 
-        randM = np.random.uniform(size=(2**N, 2**N)) * \
-                np.exp(1j * 2 * np.pi * np.random.uniform(size=(2**N, 2**N)))
+            randM = np.random.uniform(size=(2**N, 2**N)) * \
+                    np.exp(1j * 2 * np.pi * np.random.uniform(size=(2**N, 2**N)))
 
-        Q, _ = np.linalg.qr(randM)
-        rho = (Q * lamb).dot(Q.T.conj())
+            Q, _ = np.linalg.qr(randM)
+            rho = (Q * lamb).dot(Q.T.conj())
 
-        return rho, rho
+            return rho, rho
+        else:
+            x_r = np.random.uniform(-1, 1, size=(2**N, 1))
+            x_i = np.random.uniform(-1, 1, size=(2**N, 1))
+            x = x_r + 1j * x_i
+            x /= np.linalg.norm(x)
+
+            rho = x.dot(x.T.conjugate())
+
+            return x, rho
 
     def Get_uniform_state(self, N, Ns):  # PGD paper
         rho_all = []

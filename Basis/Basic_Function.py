@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # @Author: foxwy
 # @Date:   2021-04-30 09:48:23
-# @Last Modified by:   WY
-# @Last Modified time: 2021-06-12 21:19:14
+# @Last Modified by:   yong
+# @Last Modified time: 2022-12-06 10:13:28
 
 #--------------------libraries--------------------
 # internal libraries
@@ -11,6 +11,7 @@ import torch
 from torch.nn.functional import softmax
 import random
 from scipy.linalg import eigh
+import time
 
 # external libraries
 import sys
@@ -19,7 +20,6 @@ sys.path.append('..')
 from evaluation.ncon import ncon
 
 #--------------------function--------------------
-
 
 def clamp(n, minn, maxn):  # limit num to [minn, maxn]
     return max(min(maxn, n), minn)
@@ -249,6 +249,7 @@ def shuffle_forward(rho, dims):
 #-----numpy version-----
 # 利用乘积结构简化计算复杂度
 def qmt(X, operators):  # operators = [M1, M2, ....]
+    #time_b = time.perf_counter()
     if not isinstance(operators, list):
         operators = [operators]
 
@@ -273,6 +274,42 @@ def qmt(X, operators):  # operators = [M1, M2, ....]
 
     P_all = np.maximum(np.real(X.reshape(-1)), 0)
     P_all /= np.sum(P_all)
+    #print('cal P time:', time.perf_counter() - time_b)
+
+    return P_all
+
+
+def qmt_pure(X, operators):  # operators = [M1, M2, ....], two loops
+    #time_b = time.perf_counter()
+    if not isinstance(operators, list):
+        operators = [operators]
+
+    X = np.array(X)
+    N = len(operators)  # qubits number
+    Ks = np.zeros(N, dtype=np.int)
+    Ds = np.zeros(N, dtype=np.int)
+    for i in range(N):
+        dims = operators[i].shape
+        Ks[i] = dims[0]
+        Ds[i] = dims[1]
+        if i < N - 1:
+            operators[i] = operators[i].reshape((Ks[i], Ds[i]**2))
+
+    P_all = np.zeros(np.prod(Ks))
+    X = X.reshape(2, -1)
+    X_T = X.T.conjugate()
+    for k in range(Ks[-1]):
+        X_k = X_T.dot(operators[-1][k]).dot(X)
+
+        X_k = shuffle_forward(X_k, Ds[:-1])
+        for i in range(N - 2, -1, -1):
+            P = operators[i]
+            X_k = X_k.reshape(-1, Ds[i]**2).T
+            X_k = P.dot(X_k)
+        P_all[k * 4**(N - 1): ((k + 1) * 4**(N - 1))] = np.maximum(np.real(X_k.reshape(-1)), 0)
+
+    P_all /= np.sum(P_all)
+    #print('cal P time:', time.perf_counter() - time_b)
 
     return P_all
 
@@ -290,29 +327,82 @@ def shuffle_forward_torch(rho, dims):
 #-----pytorch version-----
 # 利用乘积结构简化计算复杂度
 def qmt_torch(X, operators):  # operators = [M1, M2, ....]
+    #time_b = time.perf_counter()
     if not isinstance(operators, list):
         operators = [operators]
 
     N = len(operators)  # qubits number
     Ks = torch.zeros(N, dtype=torch.int)
     Ds = torch.zeros(N, dtype=torch.int)
-    Rs = torch.zeros(N, dtype=torch.int)
     for i in range(N):
         dims = operators[i].shape
         Ks[i] = dims[0]
         Ds[i] = dims[1]
-        Rs[i] = dims[2]
         operators[i] = operators[i].reshape((Ks[i], Ds[i]*Ds[i]))
 
-    X = shuffle_forward_torch(X, Ds)
-    for i in range(N-1, -1, -1):
+    if N > 12:
+        X = X.cpu()
+    X = shuffle_forward_torch(X.to(torch.complex64), Ds)
+    X = X.permute(*torch.arange(X.ndim - 1, -1, -1))
+    X = X.reshape(Ds[i]*Ds[i], -1)
+    if N > 12:
+        X = X.to(operators[0].device)
+
+    for i in range(N - 1, -1, -1):
         P = operators[i]
-        X = X.T
-        X = X.reshape(Ds[i]*Ds[i], -1)
         X = torch.matmul(P, X)
+
+        if i > 0:
+            X = X.permute(*torch.arange(X.ndim - 1, -1, -1))
+            X = X.reshape(Ds[i]*Ds[i], -1)
 
     P_all = torch.maximum(torch.real(X.reshape(-1)), torch.tensor(0))
     P_all /= torch.sum(P_all)
+    #print('cal torch P time:', time.perf_counter() - time_b)
+
+    return P_all
+
+
+def qmt_torch_pure(X, operators):  # operators = [M1, M2, ....]
+    #time_b = time.perf_counter()
+    if not isinstance(operators, list):
+        operators = [operators]
+
+    N = len(operators)  # qubits number
+    Ks = torch.zeros(N, dtype=torch.int)
+    Ds = torch.zeros(N, dtype=torch.int)
+    for i in range(N):
+        dims = operators[i].shape
+        Ks[i] = dims[0]
+        Ds[i] = dims[1]
+        if i < N - 1:
+            operators[i] = operators[i].reshape((Ks[i], Ds[i]**2))
+
+    P_all = torch.zeros(torch.prod(Ks)).to(X.device)
+    X = X.reshape(2, -1).to(torch.complex64)
+    X_T = X.T.conj()
+    for k in range(Ks[-1]):
+        X_k = torch.matmul(X_T, torch.matmul(operators[-1][k], X))
+
+        if N > 13:
+            X_k = X_k.cpu()
+        X_k = shuffle_forward_torch(X_k, Ds[:-1])
+        X_k = X_k.reshape(-1, Ds[k]**2)
+        if N > 13:
+            X_k = X_k.to(operators[0].device)
+
+        for i in range(N - 2, -1, -1):
+            P = operators[i]
+            X_k = X_k.permute(*torch.arange(X_k.ndim - 1, -1, -1))
+            X_k = torch.matmul(P, X_k)
+
+            if i > 0:
+                X_k = X_k.reshape(-1, Ds[i]**2)
+
+        P_all[k * 4**(N - 1): ((k + 1) * 4**(N - 1))] = torch.maximum(torch.real(X_k.reshape(-1)), torch.tensor(0))
+
+    P_all /= torch.sum(P_all)
+    #print('cal torch pure P time:', time.perf_counter() - time_b)
 
     return P_all
 
