@@ -1,0 +1,8 @@
+h5py==3.7.0
+matplotlib==3.5.2
+numpy==1.24.0rc1
+openpyxl==3.0.10
+SciencePlots==2.0.1
+scipy==1.7.3
+torch==1.14.0.dev20221203+cu117
+tqdm==4.64.1

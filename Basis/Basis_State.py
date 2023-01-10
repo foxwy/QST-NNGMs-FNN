@@ -2,26 +2,35 @@
 # @Author: foxwy
 # @Date:   2021-01-19 15:38:06
 # @Last Modified by:   yong
-# @Last Modified time: 2022-12-06 09:49:26
-
-#--------------------libraries--------------------
-# internal libraries
-import numpy as np
-import matplotlib.pyplot as plt
+# @Last Modified time: 2022-12-23 21:28:24
+# @Function: Quantum state and quantum measurment
+# @Paper: Ultrafast quantum state tomography with feed-forward neural networks
 
 import os
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import random
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-# external libraries
-import sys
 sys.path.append('..')
-
 from Basis.Basic_Function import semidefinite_adjust
 
 
-#--------------------class--------------------
-#-----state-----
 class State():
+    """
+    Some basic quantum states and matrices, including |0>, |1>, Pauli matrices, GHZ_P,
+    GHZi_P, Product_P, W_P, and some random states.
+
+    Examples::
+        >>> st = State()
+        >>> GHZ_state = st.Get_GHZ_P(1, 0.3)
+        >>> (matrix([[0.70710678], [0.70710678]]), 
+              array([[0.5 , 0.15], 
+                     [0.15, 0.5 ]]))
+        >>> GHZ_state = st.Get_state_rho('GHZ_P', 1, 0.3)
+    """
     def __init__(self):
         # Pauli matrices
         self.I = np.array([[1, 0], [0, 1]])
@@ -37,11 +46,27 @@ class State():
         self.state1 = np.matrix([[0], [1]])
         self.state01 = 1 / np.sqrt(2) * (self.state0 + self.state1)
 
-    # ----------state, rho----------
     def Get_state_rho(self, state_name, N, p=1):
-        assert p >= 0 and p <= 1, print('please input p of [0, 1]')
+        """
+        Obtain the corresponding quantum state based on the input.
 
-        # mix state with real part
+        Args:
+            state_name (str): The name of quantum states, include [GHZ_P], [GHZi_P],
+                [Product_P], [W_P], [random_P], [real_random].
+            N (int): The number of qubits.
+            p (int): The P of Werner state, pure state when p == 1, identity matrix when p == 0.
+
+        Returns:
+            matrix: Pure state.
+            array: Rho, mixed state.
+
+        Examples:
+            >>> st = State()
+            >>> GHZ_state = st.Get_state_rho('GHZ_P', 1, 0.3)
+            >>> (matrix([[0.70710678], [0.70710678]]), 
+                  array([[0.5 , 0.15], 
+                         [0.15, 0.5 ]]))
+        """
         if state_name == 'GHZ_P':
             state, rho = self.Get_GHZ_P(N, p)
         elif state_name == 'GHZi_P':
@@ -52,10 +77,27 @@ class State():
             state, rho = self.Get_W_P(N, p)
         elif state_name == 'random_P':
             state, rho = self.Get_random_state(N, p)
-
+        elif state_name == 'real_random':
+            state, rho = self.Get_real_random_state(N, p)
+        else:
+            print('sorry, we have not yet achieved other quantum states!!!')
         return state, rho
 
-    def Get_GHZ_P(self, N, p):  # mix state
+    def Get_GHZ_P(self, N, p):
+        """
+        N_qubit Werner state with GHZ state,
+        rho = p * |GHZ><GHZ| + (1 - P) / d * I.
+
+        Args:
+            N (int): The number of qubits.
+            p (float): 0 <= p <= 1, |GHZ> when p == 1, I when p == 0.
+
+        Returns:
+            matrix: |GHZ>.
+            array: rho.
+        """
+        assert p >= 0 and p <= 1, print('please input ``p`` of [0, 1]')
+
         state0 = self.state0
         state1 = self.state1
         for _ in range(N - 1):
@@ -64,12 +106,25 @@ class State():
         GHZ_state = 1 / np.sqrt(2) * (state0 + state1)
         GHZ_rho = GHZ_state.dot(GHZ_state.T.conjugate())
 
-        # mix
+        # GHZ_P
         GHZ_P_rho = p * GHZ_rho + (1 - p) / 2**N * np.matrix(np.eye(2**N))
-
         return GHZ_state, np.array(GHZ_P_rho)
 
-    def Get_GHZi_P(self, N, p):  # mix state
+    def Get_GHZi_P(self, N, p):
+        """
+        N_qubit Werner state with GHZi state,
+        rho = p * |GHZi><GHZi| + (1 - P) / d * I.
+
+        Args:
+            N (int): The number of qubits.
+            p (float): 0 <= p <= 1, |GHZi> when p == 1, I when p == 0.
+
+        Returns:
+            matrix: |GHZi>.
+            array: rho.
+        """
+        assert p >= 0 and p <= 1, print('please input ``p`` of [0, 1]')
+
         state0 = self.state0
         state1 = self.state1
         for _ in range(N - 1):
@@ -78,31 +133,57 @@ class State():
         GHZi_state = 1 / np.sqrt(2) * (state0 + 1j * state1)
         GHZi_rho = GHZi_state.dot(GHZi_state.T.conjugate())
 
-        # mix
+        # GHZi_p
         GHZi_P_rho = p * GHZi_rho + (1 - p) / 2**N * np.matrix(np.eye(2**N))
-
         return GHZi_state, np.array(GHZi_P_rho)
 
     def Get_Product_P(self, N, p):
+        """
+        N_qubit Werner state with Product state,
+        rho = p * |Product><Product| + (1 - P) / d * I.
+
+        Args:
+            N (int): The number of qubits.
+            p (float): 0 <= p <= 1, |Product> when p == 1, I when p == 0.
+
+        Returns:
+            matrix: |Product>.
+            array: rho.
+        """
+        assert p >= 0 and p <= 1, print('please input ``p`` of [0, 1]')
+
         Product_state = self.state01
         for _ in range(N - 1):
             Product_state = np.kron(Product_state, self.state01)
         Product_rho = Product_state.dot(Product_state.T.conjugate())
 
-        # mix
+        # Product_P
         Product_P_rho = p * Product_rho + (1 - p) / 2**N * np.matrix(np.eye(2**N))
-
         return Product_state, np.array(Product_P_rho)
 
     def Get_state_from_array(self, array):
+        """Calculate the corresponding pure state according to the given array"""
         st = {0: self.state0, 1: self.state1}
         State = st[array[0]]
         for i in array[1:]:
             State = np.kron(State, st[i])
-
         return State
 
     def Get_W_P(self, N, p):
+        """
+        N_qubit Werner state with W state,
+        rho = p * |W><W| + (1 - P) / d * I.
+
+        Args:
+            N (int): The number of qubits.
+            p (float): 0 <= p <= 1, |W> when p == 1, I when p == 0.
+
+        Returns:
+            matrix: |W>.
+            array: rho.
+        """
+        assert p >= 0 and p <= 1, print('please input ``p`` of [0, 1]')
+
         I_array = np.identity(N)
         W_state = 0
         for row in I_array:
@@ -110,12 +191,24 @@ class State():
         W_state = 1 / np.sqrt(N) * W_state
         W_rho = W_state.dot(W_state.T.conjugate())
 
-        # mix
+        # W_P
         W_P_rho = p * W_rho + (1 - p) / 2**N * np.matrix(np.eye(2**N))
-
         return W_state, np.array(W_P_rho)
 
-    def Get_random_state(self, N, purity):  # PGD paper
+    def Get_random_state(self, N, purity):
+        """
+        Generate ``N``-qubit mixed states of corresponding ``purity`` with exponential 
+        decay of eigenvalues, see paper ``Projected gradient descent algorithms for 
+        quantum state tomography``.
+
+        Args:
+            N (int): The number of qubits.
+            purity (float): The purity of mixed states, 0 <= purity <= 1.
+
+        Returns:
+            rho, if purity != 1, otherwise, pure state.
+            rho, mixed state.
+        """
         assert purity >= 0 and purity <= 1, print('please input purity of [0, 1]')
         
         if purity != 1:
@@ -133,8 +226,8 @@ class State():
                     np.exp(1j * 2 * np.pi * np.random.uniform(size=(2**N, 2**N)))
 
             Q, _ = np.linalg.qr(randM)
-            rho = (Q * lamb).dot(Q.T.conj())
-
+            lamb_tmp = np.abs(lamb) / np.sum(np.abs(lamb))
+            rho = (Q * lamb_tmp).dot(Q.T.conj())
             return rho, rho
         else:
             x_r = np.random.uniform(-1, 1, size=(2**N, 1))
@@ -143,10 +236,18 @@ class State():
             x /= np.linalg.norm(x)
 
             rho = x.dot(x.T.conjugate())
-
             return x, rho
 
-    def Get_uniform_state(self, N, Ns):  # PGD paper
+    def Get_uniform_state(self, N, Ns):
+        """
+        Generate ``Ns`` ``N``-qubit states with uniform distribution of purity, with exponential 
+        decay of eigenvalues, see paper ``Projected gradient descent algorithms for 
+        quantum state tomography``.
+
+        Args:
+            N (int): The number of qubits.
+            Ns (int): The number of states.
+        """
         rho_all = []
         purity = []
         Ns_t = 0
@@ -160,45 +261,143 @@ class State():
             purity.append(pur)
             Ns_t += 1
         print('----end obtain uniform state, number of state: {}----'.format(len(purity)))
+        return rho_all, purity
+
+    def Get_real_random_state(self, N, p=None):
+        """
+        Random Werner state, where the pure state has only 0 or 1 or 1i. on each base. see paper 
+        ``Ultrafast quantum state tomography with feed-forward neural networks``.
+        """
+        pos_num = random.sample(range(1, 2**N + 1), 1)[0]
+        pos = random.sample(range(2**N), pos_num)
+        psi = np.zeros((2**N, 1), dtype=np.complex64)
+        psi[pos] = 1
+
+        pos_i_num = random.sample(range(1, pos_num + 1), 1)[0]
+        pos_i = random.sample(pos, pos_i_num)
+        psi[pos_i] = 1j
+
+        psi /= np.linalg.norm(psi)  # pure state
+        rho = psi.dot(psi.T.conjugate())
+
+        if p is None:  # random
+            p = np.random.uniform(size=1)[0]
+        else:  # given
+            assert p >= 0 and p <= 1, print('please input ``p`` of [0, 1]')
+
+        rho = p * rho + (1 - p) / 2**N * np.eye(2**N)
+        return psi, rho
 
         '''
-        plt.hist(purity, 20)
-        plt.show()'''
+        random_choice = [['real', 'imag'], list(range(1, N + 1)), ['uniform', 'normal']]
+        choice_1 = random.sample(random_choice[0], 1)[0]
+        choice_2 = random.sample(random_choice[1], 1)[0]
+        choice_3 = random.sample(random_choice[2], 1)[0]
+        x = 0
 
-        return rho_all, purity
+        if choice_1 == 'real':
+            if choice_3 == 'uniform':
+                x = np.random.uniform(-1, 1, size=(2**N, choice_2))
+            elif choice_3 == 'normal':
+                x = np.random.normal(size=(2**N, choice_2))
+        elif choice_1 == 'imag':
+            if choice_3 == 'uniform':
+                x_r = np.random.uniform(-1, 1, size=(2**N, choice_2))
+                x_i = 1j * np.random.uniform(-1, 1, size=(2**N, choice_2))
+            elif choice_3 == 'normal':
+                x_r = np.random.normal(size=(2**N, choice_2))
+                x_i = 1j * np.random.normal(size=(2**N, choice_2))
+            x = x_r + x_i
+        
+        X = x.dot(x.T.conjugate())
+        rho = X / np.trace(X)'''
+
+        '''
+        p = np.random.uniform(size=1)[0]
+
+        x_r = np.random.normal(size=(2**N, 1))
+        x_i = np.random.normal(size=(2**N, 1))
+        x = x_r + 1j * x_i
+        x /= np.linalg.norm(x)
+        rho = x.dot(x.T.conjugate())
+
+        rho = p * rho + (1 - p) / 2**N * np.eye(2**N)'''
+
+    def ginibre(self, N):
+        """ginibre state"""
+        x_r = np.random.normal(size=(2**N, 2**N)) / np.sqrt(2**(N + 1))
+        x_i = 1j * np.random.normal(size=(2**N, 2**N)) / np.sqrt(2**(N + 1))
+        return x_r + x_i
 
     @staticmethod
     def Rho_info(rho):
+        """
+        Print out some values of the density matrix.
+        """
         print('rho:\n', rho)
         print('rho+:\n', rho.T.conjugate())
         print('rho+=rho\n', rho.T.conjugate() == rho)
         print('Tr(rho)\n', np.trace(rho))
 
-        semidefinite_adjust(rho, 'rho')
-
     @staticmethod
     def Is_rho(rho):
-        if abs(np.trace(rho) - 1) < 1e-6 and np.all(np.abs(rho - rho.T.conjugate())) < 1e-4 and semidefinite_adjust(rho):
+        """
+        Determine if ``rho`` is a density matrix.
+
+        Density matrix properties:
+            1. unit trace.
+            2. semi-definite positive.
+            3. Hermitian.
+        """
+        if abs(np.trace(rho) - 1) < 1e-6 and np.all(np.abs(rho - rho.T.conjugate())) < 1e-7 and semidefinite_adjust(rho):
             return 1
         else:
             if abs(np.trace(rho) - 1) > 1e-6:
                 print('trace of rho is not 1')
-            if np.all(np.abs(rho - rho.T.conjugate())) > 1e-4:
+            if np.all(np.abs(rho - rho.T.conjugate())) > 1e-6:
                 print('rho is not Hermitian')
             if not semidefinite_adjust(rho):
                 print('rho is not positive semidefine')
             return 0
 
 
-#-----Mea_basis-----
 class Mea_basis(State):
+    """
+    Defining Quantum Measurement, include POVM and Pauli measurement.
+
+    Examples::
+        >>> Me = Mea_basis(basis='Tetra4')
+        >>> M = Me.M
+        >>> [[[ 0.39433756+0.j          0.14433756-0.14433756j]
+              [ 0.14433756+0.14433756j  0.10566244+0.j        ]]
+
+             [[ 0.39433756+0.j         -0.14433756+0.14433756j]
+              [-0.14433756-0.14433756j  0.10566244+0.j        ]]
+
+             [[ 0.10566244+0.j         -0.14433756-0.14433756j]
+              [-0.14433756+0.14433756j  0.39433756+0.j        ]]
+
+             [[ 0.10566244+0.j          0.14433756+0.14433756j]
+              [ 0.14433756-0.14433756j  0.39433756+0.j        ]]]
+    """
     def __init__(self, basis='Tetra'):
+        """
+        Selection of different measurement bases.
+
+        Args:
+            basis: ['Tetra'], ['Tetra4'], ['6Pauli'], ['4Pauli'], ['Pauli'], 
+                   ['Pauli_rebit'], [Pauli_6'], ['Trine'], ['Psi2'], ['Pauli_normal'].
+
+        Variables: 
+            self.K: The number of POVM elements.
+            slef.M: POVM or Pauli operators.
+        """
         super().__init__()
         self.basis = basis
         self.Get_basis()
 
     def Get_basis(self):
-        # operators
+        """POVM and Pauli operators"""
         if self.basis == 'Tetra':
             self.K = 4
 
@@ -310,12 +509,18 @@ class Mea_basis(State):
         elif self.basis == 'Pauli_normal':  # projective measurement, not POVM
             self.K = 4
             self.M = np.zeros((self.K, 2, 2), dtype=np.complex64)
-            self.M[0, :, :] = np.array([[1.0, 0.0], [0.0, 1.0]])
-            self.M[1, :, :] = np.array([[0.0, 1.0], [1.0, 0.0]])
-            self.M[2, :, :] = np.array([[0.0, -1j], [1j, 0.0]])
-            self.M[3, :, :] = np.array([[1.0, 0.0], [0.0, -1.0]])
+            self.M[0, :, :] = 1 / np.sqrt(2) * np.array([[1.0, 0.0], [0.0, 1.0]])
+            self.M[1, :, :] = 1 / np.sqrt(2) * np.array([[0.0, 1.0], [1.0, 0.0]])
+            self.M[2, :, :] = 1 / np.sqrt(2) * np.array([[0.0, -1j], [1j, 0.0]])
+            self.M[3, :, :] = 1 / np.sqrt(2) * np.array([[1.0, 0.0], [0.0, -1.0]])
+
+        else:
+            print(self.basis, 'does not exist!')
 
     def Basis_info(self):
+        """
+        Print out some values of the quantum measurement.
+        """
         print('K:\n', self.K)
         print('M:\n', self.M)
         print('M+:\n', [self.M[i].T.conjugate() for i in range(len(self.M))])
@@ -326,20 +531,13 @@ class Mea_basis(State):
         for M in self.M:
             semidefinite_adjust(M, 'M')
 
-        '''
-        it, it_cond = Cal_cond(self.M)
-        print('it:\n', it)
-        semidefinite_adjust(it, 'it')'''
-
     @staticmethod
     def pXp(theta, phi):
-
         return np.array([[np.cos(theta / 2.0)**2, np.cos(theta / 2.0) * np.sin(theta / 2.0) * np.exp(-1j * phi)],
                          [np.cos(theta / 2.0) * np.sin(theta / 2.0) * np.exp(1j * phi), np.sin(theta / 2.0)**2]])
 
     @staticmethod
     def mXm(theta, phi):
-
         return np.array([[np.sin(theta / 2.0)**2, -np.cos(theta / 2.0) * np.sin(theta / 2.0) * np.exp(-1j * phi)],
                          [-np.cos(theta / 2.0) * np.sin(theta / 2.0) * np.exp(1j * phi), np.cos(theta / 2.0)**2]])
 
@@ -355,6 +553,9 @@ if __name__ == '__main__':
 
     #MPS_state().MPS_info()
 
+    '''
     for n in range(2, 11):
         rho_all, _ = State().Get_uniform_state(n, 200)
-        np.save('../datasets/uniform_state/N'+str(n)+'.npy', rho_all)
+        np.save('../datasets/uniform_state/N'+str(n)+'.npy', rho_all)'''
+
+    print(Mea_basis(basis='Tetra4').M)
