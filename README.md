@@ -202,7 +202,7 @@ Dataset_train(100000, 'data_', M, n_qubits, 4, ty_state, device=device)  # train
 Dataset_train(20000, 'data_test_', M, n_qubits, 4, ty_state, device=device)  # testset
 ```
 
-trainset and testset are saved in `datasets/datasets`.
+trainset and testset are saved in [`datasets/datasets`](datasets/datasets).
 
 ### 2. Model Training ([`models/FNN/FNN_train.py`](models/FNN/FNN_train.py))
 
@@ -226,7 +226,7 @@ opt = parser.parse_args()
 results = Net_train(opt, device)
 ```
 
-model is saved in `models/FNN`  named `model.pt`.
+model is saved in [`models/FNN`](models/FNN)  named `model.pt`.
 
 ### 3. Perform NN-QST algorithm ([`models/FNN/FNN_learn.py`](models/FNN/FNN_learn.py))
 
