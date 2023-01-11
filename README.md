@@ -6,7 +6,7 @@ The official Pytorch implementation of the paper named [`Ultrafast quantum state
 
 ### **Abstract**
 
-Reconstructing the state of many-body quantum systems is of fundamental importance in quantum information tasks, but extremely challenging due to the curse of dimensionality. In this work, we present a quantum tomography approach based on neural networks to achieve the ultrafast reconstruction of multi-qubit states. Particularly, we propose a simple 3-layer feed-forward network to process the experimental data generated from measuring each qubit with a positive operator-valued measure, which is able to reduce the storage cost and computational complexity. Moreover, the techniques of state decomposition and P-order absolute projection are jointly introduced to ensure the positivity of state matrices learned in the combined loss function and to improve the tomography fidelity and robustness of the above network. The proposed state-mapping method also substantially improves the tomography accuracy to other QST algorithms. Further, we use network pre-training to reduce the learning cost and accelerate iterations. Finally, it is tested on a large number of states with a wide range of purity to show that the proposed algorithm achieves more accurate tomography with balanced time and iterations than previous algorithms, and achieves even no iteration with the help of pre-training.
+Reconstructing the state of many-body quantum systems is of fundamental importance in quantum information tasks, but extremely challenging due to the curse of dimensionality. In this work, we present a quantum tomography approach based on neural networks to achieve the ultrafast reconstruction of multi-qubit states. Particularly, we propose a simple 3-layer feed-forward network to process the experimental data generated from measuring each qubit with a positive operator-valued measure, which is able to reduce the storage cost and computational complexity. Then, the techniques of state decomposition and P-order absolute projection are jointly introduced to ensure the positivity of state matrices learned in the combined loss function and to improve the tomography fidelity and purity robustness of the above network. The proposed state-mapping method also substantially improves the tomography accuracy to other QST algorithms. Finally, it is tested on a large number of states with a wide range of purity to show that the proposed algorithm achieves more accurate tomography with low time and iterations than previous algorithms, and achieves faithfully tomography 11-qubit states within 2 minutes. Our numerical results also demonstrate that the increased depolarizing noise induces a linear decrease in the tomography fidelity and the ability to achieve iteration-free tomography with the help of pre-training.
 
 ### **Citation**
 
@@ -50,12 +50,12 @@ parser.add_argument("--POVM", type=str, default="Tetra4", help="type of POVM")
 parser.add_argument("--K", type=int, default=4, help='number of operators in single-qubit POVM')
 
 parser.add_argument("--na_state", type=str, default="real_random", help="name of state in library")
-parser.add_argument("--P_state", type=float, default=1, help="P of mixed state")
+parser.add_argument("--P_state", type=float, default=0.6, help="P of mixed state")
 parser.add_argument("--ty_state", type=str, default="mixed", help="type of state (pure, mixed)")
-parser.add_argument("--n_qubits", type=int, default=10, help="number of qubits")
+parser.add_argument("--n_qubits", type=int, default=8, help="number of qubits")
 
 parser.add_argument("--noise", type=str, default="no_noise", help="have or have not sample noise (noise, no_noise, depolar_noise)")
-parser.add_argument("--n_samples", type=int, default=100000, help="number of samples")
+parser.add_argument("--n_samples", type=int, default=1000000, help="number of samples")
 parser.add_argument("--P_povm", type=float, default=1, help="possbility of sampling POVM operators")
 parser.add_argument("--seed_povm", type=float, default=1.0, help="seed of sampling POVM operators")
 parser.add_argument("--read_data", type=bool, default=False, help="read data from text in computer")
@@ -64,7 +64,7 @@ parser.add_argument("--n_epochs", type=int, default=1000, help="number of epochs
 parser.add_argument("--lr", type=float, default=0.001, help="optim: learning rate")
 
 parser.add_argument("--map_method", type=str, default="chol_h", help="map method for output vector to density matrix (chol, chol_h, proj_F, proj_S, proj_A)")
-parser.add_argument("--P_proj", type=float, default="3", help="coefficient for proj method")
+parser.add_argument("--P_proj", type=float, default="2", help="coefficient for proj method")
 parser.add_argument("--net_type", type=str, default="learn", help="type of neural network (train, relearn)")
 ```
 

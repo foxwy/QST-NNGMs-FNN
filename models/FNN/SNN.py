@@ -49,7 +49,7 @@ class SNN_nn(nn.Module):
             map_method (str): State-mapping method, include ['chol', 'chol_h', 'proj_F', 'proj_S', 'proj_A'].
             P_proj (float): P order.
         """
-        super(MLE_nn, self).__init__()
+        super(SNN_nn, self).__init__()
 
         self.N = n_qubits
         self.P_idxs = P_idxs
@@ -138,7 +138,6 @@ class SNN():
 
     def train(self, epochs, fid, result_save):
         """Net training"""
-        print('\n'+'-'*20+'train'+'-'*20)
         #self.sche = optim.lr_scheduler.LinearLR(self.optim, start_factor=0.1, total_iters=epochs)
 
         pbar = tqdm(range(epochs), mininterval=0.001)
@@ -174,7 +173,7 @@ class SNN():
                     result_save['epoch'].append(epoch)
                     result_save['Fc'].append(Fc)
                     result_save['Fq'].append(Fq)
-                    pbar.set_description("MLE --loss {:.8f} | Fc {:.8f} | Fq {:.8f} | time {:.4f}".format(loss.item(), Fc, Fq, time_all))
+                    pbar.set_description("SNN --loss {:.8f} | Fc {:.8f} | Fq {:.8f} | time {:.4f} | epochs {:d}".format(loss.item(), Fc, Fq, time_all, epoch))
 
                 if Fq >= 0.99:
                     break

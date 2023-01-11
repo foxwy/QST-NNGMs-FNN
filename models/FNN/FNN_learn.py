@@ -108,6 +108,7 @@ def Net_train(opt, device):
 
 
     #----------------------------------------------QST algorithms----------------------------------------------------
+    result_saves = {}
     #---FNN---
     print('\n'+'-'*20+'FNN'+'-'*20)
     gen_net = generator(in_size, opt.n_qubits, P_idxs, 
@@ -142,6 +143,7 @@ def Net_train(opt, device):
 
 
     #---pre-train FNN+SNN---
+    '''
     print('\n'+'-'*20+'NN SNN'+'-'*20)
     gen_net = generator(in_size, opt.n_qubits, P_idxs, 
                         M, type_state=opt.ty_state, map_method=opt.map_method, 
@@ -160,7 +162,7 @@ def Net_train(opt, device):
                    'Fc': [],
                    'Fq': []}
     net.train(opt.n_epochs, fid, result_save)
-    result_saves['NN_SNN'] = result_save
+    result_saves['NN_SNN'] = result_save'''
 
 
     #---SNN---
@@ -248,22 +250,22 @@ if __name__ == '__main__':
     parser.add_argument("--POVM", type=str, default="Tetra4", help="type of POVM")
     parser.add_argument("--K", type=int, default=4, help='number of operators in single-qubit POVM')
 
-    parser.add_argument("--na_state", type=str, default="GHZ_P", help="name of state in library")
-    parser.add_argument("--P_state", type=float, default=1, help="P of mixed state")
+    parser.add_argument("--na_state", type=str, default="real_random", help="name of state in library")
+    parser.add_argument("--P_state", type=float, default=0.6, help="P of mixed state")
     parser.add_argument("--ty_state", type=str, default="mixed", help="type of state (pure, mixed)")
-    parser.add_argument("--n_qubits", type=int, default=11, help="number of qubits")
+    parser.add_argument("--n_qubits", type=int, default=8, help="number of qubits")
 
     parser.add_argument("--noise", type=str, default="no_noise", help="have or have not sample noise (noise, no_noise, depolar_noise)")
-    parser.add_argument("--n_samples", type=int, default=1000000000, help="number of samples")
+    parser.add_argument("--n_samples", type=int, default=1000000, help="number of samples")
     parser.add_argument("--P_povm", type=float, default=1, help="possbility of sampling POVM operators")
     parser.add_argument("--seed_povm", type=float, default=1.0, help="seed of sampling POVM operators")
     parser.add_argument("--read_data", type=bool, default=False, help="read data from text in computer")
 
     parser.add_argument("--n_epochs", type=int, default=1000, help="number of epochs of training")
-    parser.add_argument("--lr", type=float, default=0.1, help="optim: learning rate")
+    parser.add_argument("--lr", type=float, default=0.001, help="optim: learning rate")
 
     parser.add_argument("--map_method", type=str, default="chol_h", help="map method for output vector to density matrix (chol, chol_h, proj_F, proj_S, proj_A)")
-    parser.add_argument("--P_proj", type=float, default="3", help="coefficient for proj method")
+    parser.add_argument("--P_proj", type=float, default="2", help="coefficient for proj method")
     parser.add_argument("--net_type", type=str, default="learn", help="type of neural network (train, relearn)")
 
     opt = parser.parse_args()

@@ -755,6 +755,8 @@ def Conv_qubit_ex_fig(na_state, r_path, Algo, colors):
         Epoch_m = []
         if m_methods[i] == 'APG_projA' or m_methods[i] == 'iMLE':
             N_qubits = np.arange(2, 10)
+        elif 'NN' in labels_e[i]:
+            N_qubits = np.arange(2, 13)
         else:
             N_qubits = np.arange(2, 12)
 
@@ -805,8 +807,8 @@ def Conv_qubit_ex_fig(na_state, r_path, Algo, colors):
     
 #-----ex: 7 (Convergence Experiment of Random Mixed States for Different Samples)-----
 def Conv_depolar_ex_fig(na_state, r_path, Alpha, colors):
-    N_Samples = np.array([9])
-    m_methods = ['NN', 'MLE', 'iMLE', 'APG', 'LRE', 'APG', 'LRE']
+    N_Samples = np.array([10])
+    m_methods = ['NN', 'MLE', 'iMLE', 'APG', 'LRE', 'APG_projA', 'LRE_projA']
     labels = ['NN', 'SNN', 'iMLE', 'CG_APG', 'LRE', 'CG_APG_$\\rm \mathcal{A}[\cdot]_3$', 'LRE_$\\rm \mathcal{A}[\cdot]_1$']
     #-----purity, Fq-----
     for N_s in N_Samples:
@@ -836,6 +838,7 @@ def Conv_depolar_ex_fig(na_state, r_path, Alpha, colors):
         #ax.set_yticklabels(['$0.0$', '$0.2$', '$0.4$', '$0.6$', '$0.8$', '$1.0$'])
 
         Plt_set(ax, "$\lambda$", "Quantum fidelity", 'fig/'+na_state+'/depolar/'+na_state+'_'+str(N_s)+'_depolar_lambda_fq', loc=1, ncol=1)
+        plt.show()
 
 
 if __name__ == '__main__':

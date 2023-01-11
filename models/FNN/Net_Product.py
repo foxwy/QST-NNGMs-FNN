@@ -184,7 +184,6 @@ class Net_MLP():
 
     def train(self, epochs, fid, result_save):
         """Net training"""
-        print('\n'+'-'*20+'train'+'-'*20)
         #self.sche = optim.lr_scheduler.CosineAnnealingLR(self.optim, T_max=epochs, eta_min=0.)
         #self.sche = optim.lr_scheduler.LinearLR(self.optim, start_factor=0.1, total_iters=epochs)
 
